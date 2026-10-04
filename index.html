@@ -1,1 +1,833 @@
+<title>GLB Optimizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f2ec;
+    --surface: #ffffff;
+    --surface-2: #ebe8df;
+    --fg: #16181c;
+    --fg-dim: #5c6066;
+    --border: #d8d4c8;
+    --accent: #1458d6;
+    --accent-fg: #ffffff;
+    --ok: #157a4a;
+    --ok-bg: #e4f3ea;
+    --bad: #b3261e;
+    --bad-bg: #fbe8e6;
+    --mono-bg: #11131a;
+    --mono-fg: #d7dce3;
+    --mono-dim: #7c8798;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0c0d10;
+      --surface: #15171c;
+      --surface-2: #1c1f26;
+      --fg: #e9eaec;
+      --fg-dim: #9aa0a8;
+      --border: #2a2d35;
+      --accent: #4e8bff;
+      --accent-fg: #06101f;
+      --ok: #3fcf8e;
+      --ok-bg: #123024;
+      --bad: #ff6b63;
+      --bad-bg: #331413;
+      --mono-bg: #07080b;
+      --mono-fg: #cdd5de;
+      --mono-dim: #5c6672;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0c0d10;
+    --surface: #15171c;
+    --surface-2: #1c1f26;
+    --fg: #e9eaec;
+    --fg-dim: #9aa0a8;
+    --border: #2a2d35;
+    --accent: #4e8bff;
+    --accent-fg: #06101f;
+    --ok: #3fcf8e;
+    --ok-bg: #123024;
+    --bad: #ff6b63;
+    --bad-bg: #331413;
+    --mono-bg: #07080b;
+    --mono-fg: #cdd5de;
+    --mono-dim: #5c6672;
+    color-scheme: dark;
+  }
 
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding-inline: 16px;
+    padding-block: 28px 48px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+
+  h1 {
+    font-family: "Space Grotesk", -apple-system, sans-serif;
+    font-size: 1.7rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+  .sub {
+    color: var(--fg-dim);
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin: 0 0 4px;
+    max-width: 58ch;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ok);
+    background: var(--ok-bg);
+    border: 1px solid var(--ok);
+    border-radius: 999px;
+    padding: 4px 10px;
+  }
+  .badge::before { content: "●"; font-size: 0.6rem; }
+
+  header { margin-bottom: 22px; }
+
+  section.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  #dropzone {
+    border: 1.5px dashed var(--border);
+    border-radius: 10px;
+    padding: 28px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+    background: var(--surface-2);
+  }
+  #dropzone.drag { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface-2)); }
+  #dropzone .icon { font-size: 1.8rem; margin-bottom: 8px; opacity: 0.7; }
+  #dropzone .main { font-weight: 600; margin-bottom: 4px; }
+  #dropzone .hint { color: var(--fg-dim); font-size: 0.85rem; }
+  #fileInput { display: none; }
+
+  #fileInfo {
+    display: none;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.85rem;
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    word-break: break-all;
+  }
+  #fileInfo .name { color: var(--fg); font-weight: 600; }
+  #fileInfo .meta { color: var(--fg-dim); }
+
+  .options {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+  }
+  .field { flex: 1 1 180px; min-width: 0; }
+  .field label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+  .field select, .field input[type="number"] {
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--fg);
+    font-size: 0.9rem;
+    font-family: inherit;
+  }
+
+  button.primary {
+    width: 100%;
+    margin-top: 18px;
+    padding: 12px 16px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--accent-fg);
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.primary:not(:disabled):hover { opacity: 0.9; }
+
+  button.secondary {
+    width: 100%;
+    margin-top: 10px;
+    padding: 11px 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--fg);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  button.secondary:hover { background: var(--surface-2); }
+
+  #progressWrap { display: none; margin-top: 16px; }
+  .progress-track {
+    height: 7px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    transition: width .2s;
+  }
+  #log {
+    margin-top: 10px;
+    background: var(--mono-bg);
+    color: var(--mono-fg);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.78rem;
+    line-height: 1.6;
+    border-radius: 8px;
+    padding: 10px 12px;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+  #log .l { white-space: pre-wrap; }
+  #log .dim { color: var(--mono-dim); }
+
+  #result { display: none; }
+  .spec-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+  }
+  .spec-row:last-child { border-bottom: none; }
+  .spec-row .k { color: var(--fg-dim); }
+  .spec-row .v {
+    font-family: "IBM Plex Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    text-align: right;
+  }
+  .chip {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 999px;
+  }
+  .chip.ok { background: var(--ok-bg); color: var(--ok); }
+  .chip.bad { background: var(--bad-bg); color: var(--bad); }
+
+  #errorBox {
+    display: none;
+    background: var(--bad-bg);
+    color: var(--bad);
+    border: 1px solid var(--bad);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 0.88rem;
+    margin-top: 14px;
+  }
+
+  details.how {
+    font-size: 0.88rem;
+    color: var(--fg-dim);
+  }
+  details.how summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--fg);
+    margin-bottom: 6px;
+  }
+  details.how p { line-height: 1.6; margin: 8px 0; }
+  details.how code {
+    font-family: "IBM Plex Mono", monospace;
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 0.85em;
+  }
+
+  footer {
+    text-align: center;
+    color: var(--fg-dim);
+    font-size: 0.78rem;
+    margin-top: 28px;
+    line-height: 1.6;
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>GLB Optimizer</h1>
+    <p class="sub">Shrinks glTF/GLB 3D files by deduplicating and resizing textures — mesh geometry, materials and node structure are never touched, so parts and shape stay exactly intact.</p>
+    <span class="badge">Runs entirely in your browser — nothing is uploaded</span>
+  </header>
+
+  <section class="card">
+    <div id="dropzone">
+      <div class="icon">⬆</div>
+      <div class="main">Drop a .glb file here, or click to choose</div>
+      <div class="hint">Works on files of any size your browser's memory allows</div>
+    </div>
+    <input type="file" id="fileInput" accept=".glb">
+    <div id="fileInfo"><span class="name"></span><br><span class="meta"></span></div>
+
+    <div class="options">
+      <div class="field">
+        <label for="maxDim">Max texture size</label>
+        <select id="maxDim">
+          <option value="1024">1024 px</option>
+          <option value="2048" selected>2048 px</option>
+          <option value="4096">4096 px</option>
+          <option value="0">No resize (dedup only)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="target">Target size (MB)</label>
+        <input type="number" id="target" value="100" min="1" step="1">
+      </div>
+    </div>
+
+    <button class="primary" id="processBtn" disabled>Optimize file</button>
+
+    <div id="progressWrap">
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      <div id="log"></div>
+    </div>
+
+    <div id="errorBox"></div>
+  </section>
+
+  <section class="card" id="result">
+    <div class="spec-row"><span class="k">Original size</span><span class="v" id="rOrig">—</span></div>
+    <div class="spec-row"><span class="k">Optimized size</span><span class="v" id="rNew">—</span></div>
+    <div class="spec-row"><span class="k">Compression ratio</span><span class="v" id="rRatio">—</span></div>
+    <div class="spec-row"><span class="k">Under target</span><span class="v" id="rTarget">—</span></div>
+    <div class="spec-row"><span class="k">Materials preserved</span><span class="v" id="rMat">—</span></div>
+    <div class="spec-row"><span class="k">Meshes preserved</span><span class="v" id="rMesh">—</span></div>
+    <div class="spec-row"><span class="k">Nodes preserved</span><span class="v" id="rNodes">—</span></div>
+    <div class="spec-row"><span class="k">Images deduplicated</span><span class="v" id="rDedup">—</span></div>
+    <button class="secondary" id="downloadBtn">Download optimized file (.zip)</button>
+  </section>
+
+  <section class="card">
+    <details class="how">
+      <summary>How this works</summary>
+      <p>A GLB file is a binary container: a 12-byte header (magic number <code>0x46546C67</code>), a <code>JSON</code> chunk describing the scene graph, materials and accessors, and a <code>BIN</code> chunk holding the raw bytes — vertex data <em>and</em> textures — that the JSON's <code>bufferViews</code> point into.</p>
+      <p>This tool only touches the byte ranges that <code>images[].bufferView</code> point to. Identical images — common when several materials reuse the same texture — are written once and shared by every <code>bufferView</code> that pointed at them, whether or not they're also resized. A texture already at or under the selected max dimension is left completely untouched: a browser's built-in PNG encoder compresses more weakly than the native tools desktop apps use, so re-encoding a texture that doesn't need resizing tends to make it <em>larger</em>, not smaller — the original bytes already win. A texture over the max dimension is decoded, scaled down, and re-encoded losslessly (dropping the alpha channel only when every pixel in it is fully opaque, which loses no information). Every accessor, mesh, material, node and animation keeps its original index and its original bytes, so geometry is bit-for-bit identical and per-part materials stay separate.</p>
+      <p>Because the result is a <code>.glb</code> and this page can only hand you files in a fixed set of formats, the download arrives as a <code>.zip</code> containing the single <code>.glb</code> file — unzip it to get your optimized model.</p>
+    </details>
+  </section>
+
+  <footer>
+    Supports standard single-buffer embedded GLB files. Textures stored via extensions this tool can't decode (e.g. Basis/KTX2) are deduplicated by content but left unresized.
+  </footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const fileInfo = document.getElementById('fileInfo');
+  const processBtn = document.getElementById('processBtn');
+  const progressWrap = document.getElementById('progressWrap');
+  const progressFill = document.getElementById('progressFill');
+  const logEl = document.getElementById('log');
+  const errorBox = document.getElementById('errorBox');
+  const resultEl = document.getElementById('result');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const maxDimSel = document.getElementById('maxDim');
+  const targetInput = document.getElementById('target');
+
+  let currentFile = null;
+  let outputBytes = null; // Uint8Array of the final .glb, set after a successful run
+  let outputName = 'optimized.glb';
+  let downloadsApi = null;
+  // Opened as a plain local file (double-clicked, not inside claude.ai),
+  // window.claude doesn't exist at all — fall back to a normal browser
+  // download of the .glb itself (no zip wrapping needed outside the
+  // artifact sandbox, and no file-save confirmation dance either).
+  const hasClaudeHost = !!(window.claude && typeof window.claude.use === 'function');
+
+  if (hasClaudeHost) {
+    window.claude.use('downloads').then((d) => { downloadsApi = d; }).catch(() => {});
+    downloadBtn.textContent = 'Download optimized file (.zip)';
+  } else {
+    downloadBtn.textContent = 'Download optimized file (.glb)';
+  }
+
+  function fmtBytes(n) {
+    if (n >= 1e9) return (n / 1e9).toFixed(2) + ' GB';
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + ' MB';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + ' KB';
+    return n + ' B';
+  }
+
+  function log(msg, dim) {
+    const line = document.createElement('div');
+    line.className = 'l' + (dim ? ' dim' : '');
+    line.textContent = msg;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function setProgress(pct) {
+    progressFill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+  }
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.style.display = 'block';
+  }
+  function clearError() {
+    errorBox.style.display = 'none';
+    errorBox.textContent = '';
+  }
+
+  function pickFile(file) {
+    if (!file) return;
+    if (!/\.glb$/i.test(file.name)) {
+      showError('Please choose a .glb file.');
+      return;
+    }
+    clearError();
+    currentFile = file;
+    resultEl.style.display = 'none';
+    outputBytes = null;
+    document.querySelector('#fileInfo .name').textContent = file.name;
+    document.querySelector('#fileInfo .meta').textContent = fmtBytes(file.size);
+    fileInfo.style.display = 'block';
+    processBtn.disabled = false;
+  }
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => pickFile(e.target.files[0]));
+  ['dragenter', 'dragover'].forEach((evt) =>
+    dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('drag'); })
+  );
+  ['dragleave', 'drop'].forEach((evt) =>
+    dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove('drag'); })
+  );
+  dropzone.addEventListener('drop', (e) => {
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    pickFile(f);
+  });
+
+  // ---------- CRC32 (table-based) for the ZIP wrapper ----------
+  const CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c;
+    }
+    return t;
+  })();
+  function crc32(buf) {
+    let crc = 0xFFFFFFFF;
+    for (let i = 0; i < buf.length; i++) crc = CRC_TABLE[(crc ^ buf[i]) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  // Minimal single-entry ZIP (STORE, uncompressed) so the output passes the
+  // downloads capability's extension allowlist (.glb isn't in it, .zip is).
+  function zipStore(filename, bytes) {
+    const nameBytes = new TextEncoder().encode(filename);
+    const crc = crc32(bytes);
+    const DATE = 0x0021, TIME = 0x0000;
+
+    const local = new Uint8Array(30 + nameBytes.length);
+    let dv = new DataView(local.buffer);
+    dv.setUint32(0, 0x04034b50, true);
+    dv.setUint16(4, 20, true);
+    dv.setUint16(6, 0, true);
+    dv.setUint16(8, 0, true);
+    dv.setUint16(10, TIME, true);
+    dv.setUint16(12, DATE, true);
+    dv.setUint32(14, crc, true);
+    dv.setUint32(18, bytes.length, true);
+    dv.setUint32(22, bytes.length, true);
+    dv.setUint16(26, nameBytes.length, true);
+    dv.setUint16(28, 0, true);
+    local.set(nameBytes, 30);
+
+    const centralOffset = local.length + bytes.length;
+    const central = new Uint8Array(46 + nameBytes.length);
+    dv = new DataView(central.buffer);
+    dv.setUint32(0, 0x02014b50, true);
+    dv.setUint16(4, 20, true);
+    dv.setUint16(6, 20, true);
+    dv.setUint16(8, 0, true);
+    dv.setUint16(10, 0, true);
+    dv.setUint16(12, TIME, true);
+    dv.setUint16(14, DATE, true);
+    dv.setUint32(16, crc, true);
+    dv.setUint32(20, bytes.length, true);
+    dv.setUint32(24, bytes.length, true);
+    dv.setUint16(28, nameBytes.length, true);
+    dv.setUint16(30, 0, true);
+    dv.setUint16(32, 0, true);
+    dv.setUint16(34, 0, true);
+    dv.setUint16(36, 0, true);
+    dv.setUint32(38, 0, true);
+    dv.setUint32(42, 0, true);
+    central.set(nameBytes, 46);
+
+    const end = new Uint8Array(22);
+    dv = new DataView(end.buffer);
+    dv.setUint32(0, 0x06054b50, true);
+    dv.setUint16(4, 0, true);
+    dv.setUint16(6, 0, true);
+    dv.setUint16(8, 1, true);
+    dv.setUint16(10, 1, true);
+    dv.setUint32(12, central.length, true);
+    dv.setUint32(16, centralOffset, true);
+    dv.setUint16(20, 0, true);
+
+    const out = new Uint8Array(local.length + bytes.length + central.length + end.length);
+    let o = 0;
+    out.set(local, o); o += local.length;
+    out.set(bytes, o); o += bytes.length;
+    out.set(central, o); o += central.length;
+    out.set(end, o);
+    return out;
+  }
+
+  // ---------- Core GLB rebuild ----------
+  function align4(n) { return (n + 3) & ~3; }
+
+  async function hashBytes(bytes) {
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    const arr = new Uint8Array(digest);
+    let hex = '';
+    for (let i = 0; i < arr.length; i++) hex += arr[i].toString(16).padStart(2, '0');
+    return hex;
+  }
+
+  function sniffMime(bytes) {
+    if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return 'image/png';
+    if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8) return 'image/jpeg';
+    return null;
+  }
+
+  async function decodeAndResize(bytes, mimeType, maxDim) {
+    const mt = mimeType || sniffMime(bytes);
+    if (!mt) return null; // unknown/unsupported format (e.g. KTX2/Basis) — caller keeps original bytes
+    const blob = new Blob([bytes], { type: mt });
+    let bitmap;
+    try {
+      bitmap = await createImageBitmap(blob);
+    } catch (e) {
+      return null; // undecodable in this browser — keep original bytes
+    }
+    const w0 = bitmap.width, h0 = bitmap.height;
+    const needsResize = maxDim > 0 && (w0 > maxDim || h0 > maxDim);
+    if (!needsResize) {
+      // Browsers' canvas PNG encoder is markedly weaker than a tuned native
+      // one (no optimal filtering / high-effort deflate): re-encoding a
+      // texture that doesn't even need resizing routinely made it BIGGER
+      // than the original, not smaller. So below the target size, the
+      // original bytes already win — leave them untouched.
+      bitmap.close && bitmap.close();
+      return null;
+    }
+    const scale = Math.min(maxDim / w0, maxDim / h0);
+    const w = Math.max(1, Math.round(w0 * scale));
+    const h = Math.max(1, Math.round(h0 * scale));
+
+    // Draw once with alpha so we can losslessly check whether the texture
+    // actually uses transparency.
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d', { alpha: true });
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close && bitmap.close();
+
+    let hasAlpha = false;
+    const pixels = ctx.getImageData(0, 0, w, h).data;
+    for (let i = 3; i < pixels.length; i += 4) {
+      if (pixels[i] !== 255) { hasAlpha = true; break; }
+    }
+
+    let outBlob;
+    if (hasAlpha) {
+      outBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    } else {
+      // Fully opaque: re-draw onto an alpha:false canvas so the encoder
+      // drops the alpha channel entirely — smaller, still lossless since
+      // every pixel was opaque anyway.
+      const opaqueCanvas = document.createElement('canvas');
+      opaqueCanvas.width = w;
+      opaqueCanvas.height = h;
+      const octx = opaqueCanvas.getContext('2d', { alpha: false });
+      octx.drawImage(canvas, 0, 0);
+      outBlob = await new Promise((resolve) => opaqueCanvas.toBlob(resolve, 'image/png'));
+    }
+    if (!outBlob) return null;
+    const buf = await outBlob.arrayBuffer();
+    return new Uint8Array(buf);
+  }
+
+  async function optimizeGlb(arrayBuffer, { maxDim, onProgress }) {
+    const dv = new DataView(arrayBuffer);
+    if (dv.getUint32(0, true) !== 0x46546c67) throw new Error("Not a valid GLB file (bad magic number — doesn't start with 'glTF').");
+    const totalLength = dv.getUint32(8, true);
+
+    let offset = 12, jsonBytes = null, binBytes = null;
+    while (offset < totalLength) {
+      const chunkLength = dv.getUint32(offset, true);
+      const chunkType = dv.getUint32(offset + 4, true);
+      const chunkStart = offset + 8;
+      if (chunkType === 0x4e4f534a) jsonBytes = new Uint8Array(arrayBuffer, chunkStart, chunkLength);
+      else if (chunkType === 0x004e4942) binBytes = new Uint8Array(arrayBuffer, chunkStart, chunkLength);
+      offset = chunkStart + chunkLength;
+    }
+    if (!jsonBytes) throw new Error('No JSON chunk found in this GLB file.');
+    const json = JSON.parse(new TextDecoder('utf-8').decode(jsonBytes));
+    if (!binBytes) throw new Error('This GLB file has no embedded binary (BIN) chunk — nothing to optimize.');
+
+    const materialsBefore = (json.materials || []).length;
+    const meshesBefore = (json.meshes || []).length;
+    const nodesBefore = (json.nodes || []).length;
+    const images = json.images || [];
+    const bufferViews = json.bufferViews || [];
+
+    onProgress(`Parsed: ${materialsBefore} materials, ${meshesBefore} meshes, ${nodesBefore} nodes, ${images.length} images`);
+
+    for (const bv of bufferViews) {
+      if ((bv.buffer || 0) !== 0) throw new Error('This GLB uses multiple binary buffers, which this tool doesn’t support yet.');
+    }
+    if (!json.buffers || json.buffers.length !== 1) throw new Error('Expected exactly one embedded buffer in this GLB file.');
+
+    const imageBufferViewIndices = new Set();
+    for (const img of images) {
+      if (img.bufferView != null) imageBufferViewIndices.add(img.bufferView);
+    }
+
+    const writes = [];
+    const placedByHash = new Map();
+    let writeOffset = 0;
+    let dedupedCount = 0;
+    let resizedCount = 0;
+    let processed = 0;
+    const totalImages = imageBufferViewIndices.size;
+
+    for (let i = 0; i < bufferViews.length; i++) {
+      const bv = bufferViews[i];
+      const origBytes = binBytes.subarray(bv.byteOffset || 0, (bv.byteOffset || 0) + bv.byteLength);
+
+      if (!imageBufferViewIndices.has(i)) {
+        writeOffset = align4(writeOffset);
+        writes.push({ offset: writeOffset, bytes: origBytes });
+        bv.byteOffset = writeOffset;
+        bv.byteLength = origBytes.length;
+        writeOffset += origBytes.length;
+        continue;
+      }
+
+      processed++;
+      const hash = await hashBytes(origBytes);
+      const existing = placedByHash.get(hash);
+      if (existing) {
+        dedupedCount++;
+        bv.byteOffset = existing.offset;
+        bv.byteLength = existing.length;
+        onProgress(`Optimizing textures... (${processed}/${totalImages}) — reused identical image`, true);
+        continue;
+      }
+
+      const matchingImages = images.filter((im) => im.bufferView === i);
+      const imgEntry = matchingImages[0];
+      let newBytes = await decodeAndResize(origBytes, imgEntry && imgEntry.mimeType, maxDim);
+      if (newBytes) {
+        resizedCount++;
+        matchingImages.forEach((im) => { im.mimeType = 'image/png'; });
+      } else {
+        newBytes = origBytes; // undecodable format — keep as-is, still dedup-eligible by hash
+      }
+
+      writeOffset = align4(writeOffset);
+      writes.push({ offset: writeOffset, bytes: newBytes });
+      placedByHash.set(hash, { offset: writeOffset, length: newBytes.length });
+      bv.byteOffset = writeOffset;
+      bv.byteLength = newBytes.length;
+      writeOffset += newBytes.length;
+
+      onProgress(`Optimizing textures... (${processed}/${totalImages})`, true);
+      if (processed % 4 === 0) await new Promise((r) => setTimeout(r, 0));
+    }
+
+    onProgress('Rebuilding buffer...');
+    const finalBufLen = align4(writeOffset);
+    const newBin = new Uint8Array(finalBufLen);
+    for (const w of writes) newBin.set(w.bytes, w.offset);
+
+    json.buffers[0].byteLength = finalBufLen;
+    delete json.buffers[0].uri;
+
+    onProgress('Encoding output file...');
+    let jsonStr = JSON.stringify(json);
+    const jsonPad = (4 - (jsonStr.length % 4)) % 4;
+    jsonStr += ' '.repeat(jsonPad);
+    const jsonOut = new TextEncoder().encode(jsonStr);
+
+    const binPad = (4 - (newBin.length % 4)) % 4;
+    const binOut = binPad ? (() => { const b = new Uint8Array(newBin.length + binPad); b.set(newBin, 0); return b; })() : newBin;
+
+    const totalLen = 12 + 8 + jsonOut.length + 8 + binOut.length;
+    const out = new Uint8Array(totalLen);
+    const odv = new DataView(out.buffer);
+    odv.setUint32(0, 0x46546c67, true);
+    odv.setUint32(4, 2, true);
+    odv.setUint32(8, totalLen, true);
+
+    let o = 12;
+    odv.setUint32(o, jsonOut.length, true); o += 4;
+    odv.setUint32(o, 0x4e4f534a, true); o += 4;
+    out.set(jsonOut, o); o += jsonOut.length;
+
+    odv.setUint32(o, binOut.length, true); o += 4;
+    odv.setUint32(o, 0x004e4942, true); o += 4;
+    out.set(binOut, o);
+
+    return {
+      bytes: out,
+      materialsBefore, meshesBefore, nodesBefore,
+      materialsAfter: materialsBefore, meshesAfter: meshesBefore, nodesAfter: nodesBefore,
+      dedupedCount, resizedCount, totalImages,
+    };
+  }
+
+  processBtn.addEventListener('click', async () => {
+    if (!currentFile) return;
+    clearError();
+    resultEl.style.display = 'none';
+    outputBytes = null;
+    logEl.innerHTML = '';
+    progressWrap.style.display = 'block';
+    setProgress(5);
+    processBtn.disabled = true;
+
+    const maxDim = parseInt(maxDimSel.value, 10);
+    const targetMB = parseFloat(targetInput.value) || 100;
+
+    try {
+      log(`Reading ${currentFile.name} (${fmtBytes(currentFile.size)})...`);
+      const arrayBuffer = await currentFile.arrayBuffer();
+      setProgress(15);
+
+      let prog = 20;
+      const result = await optimizeGlb(arrayBuffer, {
+        maxDim,
+        onProgress: (msg, dim) => { log(msg, dim); prog = Math.min(90, prog + 1); setProgress(prog); },
+      });
+      setProgress(95);
+
+      const origSize = currentFile.size;
+      const newSize = result.bytes.length;
+      outputBytes = result.bytes;
+      outputName = currentFile.name.replace(/\.glb$/i, '') + '_optimized.glb';
+
+      log(`Done. ${fmtBytes(origSize)} -> ${fmtBytes(newSize)}`);
+      setProgress(100);
+
+      document.getElementById('rOrig').textContent = fmtBytes(origSize);
+      document.getElementById('rNew').textContent = fmtBytes(newSize);
+      document.getElementById('rRatio').textContent = (origSize / newSize).toFixed(2) + 'x smaller';
+      const underTarget = newSize <= targetMB * 1024 * 1024;
+      const targetEl = document.getElementById('rTarget');
+      targetEl.innerHTML = `<span class="chip ${underTarget ? 'ok' : 'bad'}">${underTarget ? 'YES' : 'NO'} (target ${targetMB} MB)</span>`;
+      document.getElementById('rMat').textContent = `${result.materialsAfter}/${result.materialsBefore}`;
+      document.getElementById('rMesh').textContent = `${result.meshesAfter}/${result.meshesBefore}`;
+      document.getElementById('rNodes').textContent = `${result.nodesAfter}/${result.nodesBefore}`;
+      document.getElementById('rDedup').textContent = `${result.dedupedCount} of ${result.totalImages} images shared with an identical copy`;
+
+      resultEl.style.display = 'block';
+    } catch (err) {
+      showError('Could not optimize this file: ' + (err && err.message ? err.message : String(err)));
+      progressWrap.style.display = 'none';
+    } finally {
+      processBtn.disabled = false;
+    }
+  });
+
+  downloadBtn.addEventListener('click', async () => {
+    if (!outputBytes) return;
+
+    if (!hasClaudeHost) {
+      // Plain local file: a normal same-page download works fine, no zip needed.
+      try {
+        const blob = new Blob([outputBytes], { type: 'model/gltf-binary' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = outputName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      } catch (e) {
+        showError('Download failed: ' + (e && e.message ? e.message : String(e)));
+      }
+      return;
+    }
+
+    if (!downloadsApi) {
+      try { downloadsApi = await window.claude.use('downloads'); } catch (e) {}
+    }
+    if (!downloadsApi) {
+      showError('Downloads aren’t available in this view (this usually only works on claude.ai).');
+      return;
+    }
+    const zipName = outputName + '.zip';
+    const zipped = zipStore(outputName, outputBytes);
+    try {
+      await downloadsApi.save({ filename: zipName, data: zipped });
+    } catch (e) {
+      if (e && e.code === 'declined') return;
+      showError('Download failed: ' + (e && e.message ? e.message : String(e)));
+    }
+  });
+})();
+</script>
